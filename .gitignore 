@@ -1,0 +1,11 @@
+# Local dev files
+.env
+.env.local
+
+# OS junk
+.DS_Store
+Thumbs.db
+
+# Logs/caches
+*.log
+node_modules/  # If you add npm later
