@@ -1,0 +1,24 @@
+# Local dev files (keys, env)
+.env
+.env.local
+.env.*
+
+# OS-specific files
+.DS_Store
+Thumbs.db
+
+# Logs and caches
+*.log
+.cache/
+
+# Node modules (if you add npm later)
+node_modules/
+npm-debug.log*
+
+# Editor files
+.vscode/
+.idea/
+
+# Build outputs (if you add builds)
+dist/
+build/
