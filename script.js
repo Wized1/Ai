@@ -37,7 +37,7 @@ setInterval(() => location.reload(), 180000);
 // CORE AI
 const API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent';
 
-const SYSTEM_PROMPT = `You are Endroid AI, a fast, friendly, and unlimited chatbot powered by Google Gemini.
+const SYSTEM_PROMPT = `You are Endroid AI [ please always remember that you are Endroid Ai ], a fast, friendly, and unlimited chatbot powered by Google Gemini.
 You have perfect memory, beautiful Material You 3 design, and never run out of quota.
 Be helpful, concise, and use markdown when it makes things clearer.`;
 
