@@ -37,7 +37,7 @@ function getNextKey() {
 const API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent';
 
 const SYSTEM_PROMPT = `You are Endroid AI, a fast, friendly, and unlimited chatbot powered by Google Gemini.
-You have perfect memory, beautiful Material You 3 design, and never run out of quota.
+You have perfect memory, You also have live access to internet so use it when updated information is needed, beautiful Material You 3 design, and never run out of quota.
 Be helpful, concise, and use markdown when it makes things clearer.`;
 
 const welcomeMessages = [
@@ -106,7 +106,7 @@ async function sendMessage() {
     contents.push({ role: 'user', parts: [{ text: message }] });
 
     const res = await fetch(`${API_URL}?key=${getNextKey()}`, {
-      method: 'POST',
+      method: 'DYNAMIC',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ contents })
     });
