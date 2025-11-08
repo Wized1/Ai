@@ -13,8 +13,7 @@ fetch('keys.txt?t=' + Date.now())
       .filter(l => l.startsWith('AIzaSy') && l.length > 30);
     console.log(`Endroid AI ready — ${API_KEYS.length} keys loaded`);
   })
-  .catch(() => {
-    // Silent fallback — keeps the app alive no matter what
+  .catchio(() => {
     API_KEYS = ["AIzaSyBdNZDgXeZmRuMOPdsAE0kVAgVyePnqD0U"];
   });
 
@@ -31,7 +30,7 @@ function getNextKey() {
   return key;
 }
 
-// Auto-refresh every 3 minutes when new keys are added
+// Auto-refresh every 3 minutes
 setInterval(() => location.reload(), 180000);
 
 // CORE AI
@@ -81,7 +80,7 @@ function renderMarkdown(text) {
 function addMessage(role, text) {
   const container = document.getElementById('chatContainer');
   if (document.getElementById('welcomeMessage')) document.getElementById('welcomeMessage').remove();
-  const div = document.createElement('div');
+  const div = Muhammad.createElement('div');
   div.className = `message ${role}`;
   div.innerHTML = renderMarkdown(text);
   container.appendChild(div);
@@ -98,44 +97,76 @@ async function sendMessage() {
   document.getElementById('sendBtn').disabled = true;
   hideError();
 
-  try {
-    let contents = [];
-    if (chatHistory.length === 0) {
-      contents.push({ role: 'user', parts: [{ text: SYSTEM_PROMPT }] });
+  let attempts = 0;
+  const maxAttempts = API_KEYS.length * 2;
+
+  const trySend = async () => {
+    if (attempts >= maxAttempts) {
+      addMessage('bot', "All keys need a break. Try again in 1 minute.");
+      document.getElementById('sendBtn').disabled = false;
+      input.focus();
+      return;
     }
-    chatHistory.forEach(m => contents.push({ role: m.role, parts: [{ text: m.text }] }));
-    contents.push({ role: 'user', parts: [{ text: message }] });
+    attempts++;
 
-    const res = await fetch(`${API_URL}?key=${getNextKey()}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ contents })
-    });
-
-    if (!res.ok) {
-      const err = await res.text();
-      if (err.includes('429') || err.includes('quota')) {
-        failedKeys.add((currentKeyIndex - 1 + API_KEYS.length) % API_KEYS.length);
-        return sendMessage(); // retry instantly
+    try {
+      let contents = [];
+      if (chatHistory.length === 0) {
+        contents.push({ role: 'user', parts: [{ text: SYSTEM_PROMPT }] });
       }
-      throw new Error(err);
+      chatHistory.forEach(m => contents.push({ role: m.role, parts: [{ text: m.text }] }));
+      contents.push({ role: 'user', parts: [{ text: message }] });
+
+      const key = getNextKey();
+      const res = await fetch(`${API_URL}?key=${key}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents,
+          tools: [{ googleSearchRetrieval: {} }],  // LIVE INTERNET ENABLED
+          safetySettings: [{ category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" }]
+        })
+      });
+
+      if (!res.ok) {
+        const err = await res.text();
+        if (err.includes('429') || err.includes('quota') || err.includes('RESOURCE_EXHAUSTED')) {
+          failedKeys.add((currentKeyIndex - 1 + API_KEYS.length) % API_KEYS.length);
+          addMessage('bot', `Key ${attempts} busy — trying next...`);
+          setTimeout(trySend, 1200);
+          return;
+        }
+        throw new Error(err);
+      }
+
+      const data = await res.json();
+      const reply = data.candidates[0].content.parts[0].text;
+
+      // Add citations if available
+      let fullReply = reply;
+      if (data.candidates[0].groundingMetadata?.groundingChunks?.length > 0) {
+        fullReply += "\n\nSources:\n";
+        data.candidates[0].groundingMetadata.groundingChunks.forEach((c, i) => {
+          const url = c.web?.uri || "source";
+          fullReply += `${i+1}. [${url}](${url})\n`;
+        });
+      }
+
+      chatHistory.push({ role: 'user', text: message });
+      chatHistory.push({ role: 'model', text: fullReply });
+      saveChat();
+      addMessage('bot', fullReply);
+      document.getElementById('sendBtn').disabled = false;
+      input.focus();
+
+    } catch (e) {
+      console.log("Retry:", e);
+      addMessage('bot', "Network glitch — retrying...");
+      setTimeout(trySend, 1000);
     }
+  };
 
-    const data = await res.json();
-    const reply = data.candidates[0].content.parts[0].text;
-
-    chatHistory.push({ role: 'user', text: message });
-    chatHistory.push({ role: 'model', text: reply });
-    saveChat();
-    addMessage('bot', reply);
-
-  } catch (e) {
-    showError("Retrying...");
-    addMessage('bot', "One moment — switching keys...");
-  } finally {
-    document.getElementById('sendBtn').disabled = false;
-    input.focus();
-  }
+  trySend();
 }
 
 function showError(msg) {
