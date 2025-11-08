@@ -1,9 +1,9 @@
-// ENDROID AI — CLEAN, ANONYMOUS, UNSTOPPABLE
-// Just keep keys.txt in the root — never edit this file again
+// ENDROID AI — SUPERCHARGED
+// Keep keys.txt in root — never edit this file manually
 
 let API_KEYS = [];
 
-// Load keys.txt automatically
+// Load API keys
 fetch('keys.txt?t=' + Date.now())
   .then(r => r.ok ? r.text() : Promise.reject())
   .then(text => {
@@ -30,33 +30,37 @@ function getNextKey() {
   return key;
 }
 
-// Auto-refresh every 3 minutes
-setInterval(() => location.reload(), 180000);
-
 // CORE AI
 const API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent';
 const SYSTEM_PROMPT = `You are Endroid AI, a fast, friendly, and unlimited chatbot powered by Google Gemini.
 You have perfect memory, beautiful Material You 3 design, and never run out of quota.
-Be helpful, concise, and use markdown when it makes things clearer.`;
+Be helpful, concise, and use Markdown when it makes things clearer.`;
 
-// --- SMART DUCKDUCKGO FETCH ---
+// --- FETCH 5 DUCKDUCKGO SOURCES ---
 async function duckDuckGoSearch(query) {
   try {
     const url = `https://api.duckduckgo.com/?q=${encodeURIComponent(query)}&format=json&no_redirect=1&no_html=1`;
     const res = await fetch(url);
     const data = await res.json();
     let sources = [];
+
+    // Abstract
     if (data.Abstract) sources.push(data.Abstract);
+
+    // RelatedTopics (take up to 5 total sources)
     if (data.RelatedTopics) {
-      for (let i = 0; i < Math.min(3, data.RelatedTopics.length); i++) {
+      for (let i = 0; i < data.RelatedTopics.length && sources.length < 5; i++) {
         if (data.RelatedTopics[i].Text) sources.push(data.RelatedTopics[i].Text);
       }
     }
-    if (sources.length === 0) sources.push("No live data found.");
-    return sources;
+
+    // Fill empty sources if less than 5
+    while (sources.length < 5) sources.push("No additional live data available.");
+
+    return sources.slice(0,5);
   } catch (err) {
     console.warn("DuckDuckGo fetch failed:", err);
-    return ["No live data available."];
+    return Array(5).fill("No live data available.");
   }
 }
 
@@ -108,7 +112,7 @@ function addMessage(role, text) {
   container.scrollTop = container.scrollHeight;
 }
 
-// MAIN SEND FUNCTION — smarter and richer
+// MAIN SEND FUNCTION — 5-source powerful fetch
 async function sendMessage() {
   const input = document.getElementById('messageInput');
   const message = input.value.trim();
@@ -120,15 +124,9 @@ async function sendMessage() {
   hideError();
 
   try {
-    // Step 1: Fetch top 3 live sources from DuckDuckGo
-    let liveSources = [];
-    const triggerWords = ["search","latest","news","today","update","info","information"];
-    if (triggerWords.some(w => message.toLowerCase().includes(w))) {
-      liveSources = await duckDuckGoSearch(message);
-      if (liveSources[0] !== "No live data found.") {
-        addMessage("system", "_Fetching live info..._");
-      }
-    }
+    // Step 1: Fetch 5 live sources for EVERY message
+    let liveSources = await duckDuckGoSearch(message);
+    addMessage("system", "_Fetching live info from 5 sources..._");
 
     // Step 2: Build prompt for Gemini
     let contents = [];
@@ -137,12 +135,9 @@ async function sendMessage() {
     }
     chatHistory.forEach(m => contents.push({ role: m.role, parts: [{ text: m.text }] }));
 
-    let finalPrompt = message;
-    if (liveSources.length > 0) {
-      finalPrompt = `User asked: "${message}"\n\nHere are the latest sources:\n` +
-        liveSources.map((s,i)=>`${i+1}. ${s}`).join('\n') +
-        `\n\nPlease provide a detailed, actionable, and easy-to-read answer using these sources. Format with Markdown if needed.`;
-    }
+    let finalPrompt = `User asked: "${message}"\n\nHere are 5 live sources:\n` +
+      liveSources.map((s,i)=>`${i+1}. ${s}`).join('\n') +
+      `\n\nPlease analyze these sources carefully and provide the most useful, accurate, and actionable answer possible. Format using Markdown where appropriate.`;
 
     contents.push({ role: 'user', parts: [{ text: finalPrompt }] });
 
