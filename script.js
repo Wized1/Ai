@@ -155,6 +155,15 @@ function clearHistory() {
   }
 }
 
+tools: [{
+  googleSearchRetrieval: {
+    dynamicRetrievalConfig: {
+      mode: "MODE_DYNAMIC",
+      dynamicThreshold: 0.7
+    }
+  }
+}],
+  
 function saveChat() { localStorage.setItem('endroid_chat', JSON.stringify(chatHistory)); }
 function loadChat() {
   const saved = localStorage.getItem('endroid_chat');
@@ -167,3 +176,4 @@ function loadChat() {
 document.getElementById('messageInput').addEventListener('keypress', e => {
   if (e.key === 'Enter') sendMessage();
 });
+    
