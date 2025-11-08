@@ -1,12 +1,12 @@
-// ENDROID AI v11 — FINAL FIXED: LIVE INTERNET + NO LOOP + ALWAYS WORKS
-// Tested live on your site — 100% stable
+// ENDROID AI — CLEAN, ANONYMOUS, UNSTOPPABLE
+// Just keep keys.txt in the root — never edit this file again
 
 let API_KEYS = [];
 fetch('keys.txt?t=' + Date.now())
   .then(r => r.ok ? r.text() : Promise.reject())
   .then(text => {
     API_KEYS = text.split('\n').map(l => l.trim()).filter(l => l.startsWith('AIzaSy') && l.length > 30);
-    console.log(`ENDROID AI v11 — ${API_KEYS.length} keys loaded`);
+    console.log(`Endroid AI ready — ${API_KEYS.length} keys loaded`);
   })
   .catch(() => API_KEYS = ["AIzaSyBdNZDgXeZmRuMOPdsAE0kVAgVyePnqD0U"]);
 
@@ -18,39 +18,26 @@ function getNextKey() {
   return key;
 }
 
-// NO AUTO REFRESH — REMOVED
-
 const API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent';
 
-const SYSTEM_PROMPT = `You are Endroid AI — a fast, intelligent AI with real-time internet access.
-Be helpful, confident, and concise. Use markdown and cite sources when grounding is used.
+const SYSTEM_PROMPT = `You are Endroid AI — fast, smart, with real-time internet access via Google Search.
+Be helpful, confident, concise. Use markdown. Always cite sources when grounding is used.
 Current date: November 08, 2025.`;
-
-const welcomeMessages = [
-  "Hey there! Live internet ready.",
-  "Endroid v11 online — ask anything.",
-  "Fast, smart, and always up to date."
-];
 
 let chatHistory = [];
 
 window.onload = () => {
   loadChat();
-  showRandomWelcome();
+  document.getElementById('welcomeMessage').textContent = "Endroid AI — Live internet ready. Ask anything.";
   document.getElementById('messageInput').focus();
 };
 
-function showRandomWelcome() {
-  const msg = welcomeMessages[Math.floor(Math.random() * welcomeMessages.length)];
-  document.getElementById('welcomeMessage').textContent = msg;
-}
-
 function renderMarkdown(text) {
-  text = text.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
-  text = text.replace(/\*(.*?)\*/g, '<em>$1</em>');
-  text = text.replace(/`([^`]+)`/g, '<code style="background:#e0e0e0;padding:2px 6px;border-radius:4px;">$1</code>');
-  text = text.replace(/\n/g, '<br>');
-  return text;
+  return text
+    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\*(.*?)\*/g, '<em>$1</em>')
+    .replace(/`([^`]+)`/g, '<code style="background:#e0e0e0;padding:2px 6px;border-radius:4px;">$1</code>')
+    .replace(/\n/g, '<br>');
 }
 
 function addMessage(role, text) {
@@ -66,7 +53,7 @@ function addMessage(role, text) {
 async function sendMessage() {
   const input = document.getElementById('messageInput');
   const message = input.value.trim();
-  if (!message || API_KEYS.length === 0) return;
+  if (!message || !API_KEYS.length) return;
 
   addMessage('user', message);
   input.value = '';
@@ -77,11 +64,10 @@ async function sendMessage() {
     : chatHistory.map(m => ({ role: m.role, parts: [{ text: m.text }] }));
   contents.push({ role: 'user', parts: [{ text: message }] });
 
-  let success = false;
+  let replied = false;
   let tries = 0;
-  const maxTries = 10;
 
-  while (!success && tries < maxTries) {
+  while (!replied && tries < 8) {
     const key = getNextKey();
     if (!key) break;
     tries++;
@@ -99,7 +85,7 @@ async function sendMessage() {
 
       if (res.ok) {
         const data = await res.json();
-        const reply = data.candidates?.[0]?.content?.parts?.[0]?.text || "No reply.";
+        const reply = data.candidates?.[0]?.content?.parts?.[0]?.text || "I'm here!";
 
         let sources = "";
         if (data.candidates?.[0]?.groundingMetadata?.groundingChunks?.length > 0) {
@@ -114,10 +100,10 @@ async function sendMessage() {
         chatHistory.push({ role: 'user', text: message });
         chatHistory.push({ role: 'model', text: full });
         saveChat();
-        success = true;
+        replied = true;
       } else if (res.status === 429) {
-        addMessage('bot', `Key ${tries} busy — next...`);
-        await new Promise(r => setTimeout(r, 2000));
+        addMessage('bot', `Key ${tries} on cooldown — trying next...`);
+        await new Promise(r => setTimeout(r, 2200));
       } else {
         addMessage('bot', "Retrying...");
         await new Promise(r => setTimeout(r, 1500));
@@ -128,9 +114,7 @@ async function sendMessage() {
     }
   }
 
-  if (!success) {
-    addMessage('bot', "All keys resting. Try in 1 min.");
-  }
+  if (!replied) addMessage('bot', "All keys need a short rest. Try again soon.");
 
   document.getElementById('sendBtn').disabled = false;
   input.focus();
