@@ -1,4 +1,4 @@
-// ENDROID AI — SUPERCHARGED
+// ENDROID AI — WIKIPEDIA POWERED
 // Keep keys.txt in root — never edit this file manually
 
 let API_KEYS = [];
@@ -36,30 +36,30 @@ const SYSTEM_PROMPT = `You are Endroid AI, a fast, friendly, and unlimited chatb
 You have perfect memory, beautiful Material You 3 design, and never run out of quota.
 Be helpful, concise, and use Markdown when it makes things clearer.`;
 
-// --- FETCH 5 DUCKDUCKGO SOURCES ---
-async function duckDuckGoSearch(query) {
+// --- FETCH TOP 5 WIKIPEDIA RESULTS ---
+async function wikipediaSearch(query) {
   try {
-    const url = `https://api.duckduckgo.com/?q=${encodeURIComponent(query)}&format=json&no_redirect=1&no_html=1`;
-    const res = await fetch(url);
+    // Search for pages
+    const searchUrl = `https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(query)}&utf8=&format=json&origin=*`;
+    const res = await fetch(searchUrl);
     const data = await res.json();
+    const results = data.query.search.slice(0, 5);
+
     let sources = [];
-
-    // Abstract
-    if (data.Abstract) sources.push(data.Abstract);
-
-    // RelatedTopics (take up to 5 total sources)
-    if (data.RelatedTopics) {
-      for (let i = 0; i < data.RelatedTopics.length && sources.length < 5; i++) {
-        if (data.RelatedTopics[i].Text) sources.push(data.RelatedTopics[i].Text);
-      }
+    for (let r of results) {
+      // Fetch page extract for each result
+      const pageRes = await fetch(`https://en.wikipedia.org/w/api.php?action=query&prop=extracts&exintro&explaintext&format=json&pageids=${r.pageid}&origin=*`);
+      const pageData = await pageRes.json();
+      const pageExtract = pageData.query.pages[r.pageid].extract;
+      sources.push(pageExtract || "No additional data available.");
     }
 
-    // Fill empty sources if less than 5
-    while (sources.length < 5) sources.push("No additional live data available.");
+    // If no results, fallback
+    if (sources.length === 0) sources = ["No live data available from Wikipedia."];
 
-    return sources.slice(0,5);
+    return sources;
   } catch (err) {
-    console.warn("DuckDuckGo fetch failed:", err);
+    console.warn("Wikipedia fetch failed:", err);
     return Array(5).fill("No live data available.");
   }
 }
@@ -112,7 +112,7 @@ function addMessage(role, text) {
   container.scrollTop = container.scrollHeight;
 }
 
-// MAIN SEND FUNCTION — 5-source powerful fetch
+// MAIN SEND FUNCTION — Wikipedia-powered
 async function sendMessage() {
   const input = document.getElementById('messageInput');
   const message = input.value.trim();
@@ -124,9 +124,9 @@ async function sendMessage() {
   hideError();
 
   try {
-    // Step 1: Fetch 5 live sources for EVERY message
-    let liveSources = await duckDuckGoSearch(message);
-    addMessage("system", "_Fetching live info from 5 sources..._");
+    // Step 1: Fetch 5 Wikipedia results
+    let wikiSources = await wikipediaSearch(message);
+    addMessage("system", "_Fetching top 5 Wikipedia articles..._");
 
     // Step 2: Build prompt for Gemini
     let contents = [];
@@ -135,8 +135,8 @@ async function sendMessage() {
     }
     chatHistory.forEach(m => contents.push({ role: m.role, parts: [{ text: m.text }] }));
 
-    let finalPrompt = `User asked: "${message}"\n\nHere are 5 live sources:\n` +
-      liveSources.map((s,i)=>`${i+1}. ${s}`).join('\n') +
+    let finalPrompt = `User asked: "${message}"\n\nHere are 5 Wikipedia sources:\n` +
+      wikiSources.map((s,i)=>`${i+1}. ${s}`).join('\n') +
       `\n\nPlease analyze these sources carefully and provide the most useful, accurate, and actionable answer possible. Format using Markdown where appropriate.`;
 
     contents.push({ role: 'user', parts: [{ text: finalPrompt }] });
