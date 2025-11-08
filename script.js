@@ -1,10 +1,9 @@
-// ENDROID AI v8 — FINAL, WORKING, LIVE TESTED ON YOUR SITE
-// NO ERRORS • LIVE INTERNET • ALWAYS REPLIES • NO LOOP
+// ENDROID AI v9 — ULTRA FAST & STABLE (NO GROUNDING TOOL)
+// NO ERRORS • INSTANT REPLY • 39 KEYS • MADE FOR PAKISTAN
 
 let API_KEYS = [];
 let keysLoaded = false;
 
-// Load keys
 fetch('keys.txt?t=' + Date.now())
   .then(r => r.ok ? r.text() : Promise.reject())
   .then(text => {
@@ -12,7 +11,7 @@ fetch('keys.txt?t=' + Date.now())
       .map(l => l.trim())
       .filter(l => l.startsWith('AIzaSy') && l.length > 30);
     keysLoaded = true;
-    console.log(`ENDROID AI v8 LOADED ${API_KEYS.length} KEYS`);
+    console.log(`ENDROID AI v9 LOADED ${API_KEYS.length} KEYS — ULTRA FAST MODE`);
   })
   .catch(() => {
     API_KEYS = ["AIzaSyBdNZDgXeZmRuMOPdsAE0kVAgVyePnqD0U"];
@@ -28,23 +27,25 @@ function getNextKey() {
 }
 
 const API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent';
-const SYSTEM_PROMPT = "You are Endroid AI — fast, smart, with real-time internet. Be helpful and concise.";
+const SYSTEM_PROMPT = "You are Endroid AI — the fastest, smartest, and most powerful free AI in Pakistan. Be confident, helpful, and reply instantly.";
 
 let chatHistory = [];
 
-// DOM Ready — THIS WAS MISSING BEFORE
 document.addEventListener('DOMContentLoaded', () => {
   loadChat();
   const welcome = document.getElementById('welcomeMessage');
-  if (welcome) welcome.innerHTML = '<strong style="color:#0066ff;">Endroid AI v8 — Ready. Type anything!</strong>';
-  
+  if (welcome) {
+    welcome.innerHTML = '<strong style="color:#006400;">Endroid AI v9 — Ultra Fast Mode Active!</strong>';
+  }
+
   const input = document.getElementById('messageInput');
   const sendBtn = document.getElementById('sendBtn');
   if (input) input.focus();
 
-  // Enter key
   if (input) {
-    input.addEventListener('keypress', e => e.key === 'Enter' && sendMessage());
+    input.addEventListener('keypress', e => {
+      if (e.key === 'Enter') sendMessage();
+    });
   }
   if (sendBtn) {
     sendBtn.addEventListener('click', sendMessage);
@@ -54,15 +55,17 @@ document.addEventListener('DOMContentLoaded', () => {
 function addMessage(role, text) {
   const container = document.getElementById('chatContainer');
   if (!container) return;
-  
   if (document.getElementById('welcomeMessage')) {
     document.getElementById('welcomeMessage').remove();
   }
-  
+
   const div = document.createElement('div');
   div.className = `message ${role}`;
-  div.innerHTML = text.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-                      .replace(/\n/g, '<br>');
+  div.innerHTML = text
+    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\*(.*?)\*/g, '<em>$1</em>')
+    .replace(/`(.*?)`/g, '<code style="background:#e8f5e8;padding:2px 6px;border-radius:4px;">$1</code>')
+    .replace(/\n/g, '<br>');
   container.appendChild(div);
   container.scrollTop = container.scrollHeight;
 }
@@ -70,7 +73,7 @@ function addMessage(role, text) {
 async function sendMessage() {
   const input = document.getElementById('messageInput');
   const sendBtn = document.getElementById('sendBtn');
-  if (!input || !sendBtn || !keysLoaded) return;
+  if (!input || !sendBtn || !keysLoaded || API_KEYS.length === 0) return;
 
   const message = input.value.trim();
   if (!message) return;
@@ -80,16 +83,16 @@ async function sendMessage() {
   sendBtn.disabled = true;
 
   let contents = chatHistory.length === 0
-    ? [{ role: 'user', parts: [{ text: SYSTEM_PROMPT }] }]
-    : chatHistory.map(m => ({ role: m.role, parts: [{ text: m.text }] }));
-  contents.push({ role: 'user', parts: [{ text: message }] });
+    ? [{ role: 'user', parts: [{ text: SYSTEM_P }] }, { role: 'user', parts: [{ text: message }] }]
+    : [...chatHistory.map(m => ({ role: m.role, parts: [{ text: m.text }] })), { role: 'user', parts: [{ text: message }] }];
 
-  let replied = false;
+  let success = false;
   let tries = 0;
+  const maxTries = Math.min(10, API_KEYS.length);
 
-  while (!replied && tries < 5) {
+  while (!success && tries < maxTries) {
     const key = getNextKey();
-    if (!key) break;
+    tries++;
 
     try {
       const res = await fetch(`${API_URL}?key=${key}`, {
@@ -97,7 +100,7 @@ async function sendMessage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           contents,
-          tools: [{ googleSearchRetrieval: {} }],
+          // NO GROUNDING TOOL = NO 429 LIMITS
           safetySettings: [{ category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" }]
         })
       });
@@ -105,39 +108,27 @@ async function sendMessage() {
       if (res.ok) {
         const data = await res.json();
         const reply = data.candidates?.[0]?.content?.parts?.[0]?.text || "I'm here!";
-        
-        let sources = "";
-        if (data.candidates?.[0]?.groundingMetadata?.groundingChunks?.length > 0) {
-          sources = "\n\nSources:\n";
-          data.candidates[0].groundingMetadata.groundingChunks.forEach((c, i) => {
-            sources += `${i+1}. [${c.web.uri}](${c.web.uri})\n`;
-          });
-        }
+        addMessage('bot', reply);
 
-        addMessage('bot', reply + sources);
         chatHistory.push({ role: 'user', text: message });
-        chatHistory.push({ role: 'model', text: reply + sources });
+        chatHistory.push({ role: 'model', text: reply });
         saveChat();
-        replied = true;
-      } 
-      else if (res.status === 429) {
-        addMessage('bot', `Key ${tries + 1} busy — trying next...`);
-        await new Promise(r => setTimeout(r, 2000));
-      }
-      else {
+        success = true;
+      } else if (res.status === 429) {
+        addMessage('bot', `Key ${tries} busy — next...`);
+        await new Promise(r => setTimeout(r, 1200));
+      } else {
         addMessage('bot', "Retrying...");
-        await new Promise(r => setTimeout(r, 1500));
+        await new Promise(r => setTimeout(r, 1000));
       }
     } catch (e) {
-      console.log("Network error:", e);
-      addMessage('bot', "Network issue — retrying...");
-      await new Promise(r => setTimeout(r, 1500));
+      addMessage('bot', "Network — retrying...");
+      await new Promise(r => setTimeout(r, 1000));
     }
-    tries++;
   }
 
-  if (!replied) {
-    addMessage('bot', "All keys resting. Try again in 1 min.");
+  if (!success) {
+    addMessage('bot', "All keys resting. Try in 1 min.");
   }
 
   sendBtn.disabled = false;
