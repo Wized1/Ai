@@ -21,16 +21,20 @@ function getNextKey() {
 const API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent';
 
 const SYSTEM_PROMPT = `You are Endroid AI — fast, smart, with real-time internet access.
-Be helpful, confident, concise. Use markdown. Cite sources when used.
+Be helpful, confident, concise. Use markdown. Always cite sources when grounding is used.
 Current date: November 08, 2025.`;
 
 let chatHistory = [];
 
-window.onload = () => {
+document.addEventListener('DOMContentLoaded', () => {
   loadChat();
-  document.getElementById('welcomeMessage').textContent = "Endroid AI — Live internet ready.";
-  document.getElementById('messageInput').focus();
-};
+  document.getElementById('welcomeMessage').textContent = "Endroid AI — Live internet ready. Ask anything.";
+  const input = document.getElementById('messageInput');
+  const sendBtn = document.getElementById('sendBtn');
+  if (input) input.focus();
+  if (input) input.addEventListener('keypress', e => e.key === 'Enter' && sendMessage());
+  if (sendBtn) sendBtn.addEventListener('click', sendMessage);
+});
 
 function renderMarkdown(text) {
   return text
@@ -53,7 +57,7 @@ function addMessage(role, text) {
 async function sendMessage() {
   const input = document.getElementById('messageInput');
   const message = input.value.trim();
-  if (!message || !API_KEYS.length) return;
+  if (!message || API_KEYS.length === 0) return;
 
   addMessage('user', message);
   input.value = '';
@@ -66,8 +70,9 @@ async function sendMessage() {
 
   let replied = false;
   let tries = 0;
+  const maxTries = 8;
 
-  while (!replied && tries < 6) {
+  while (!replied && tries < maxTries) {
     const key = getNextKey();
     if (!key) break;
     tries++;
@@ -78,7 +83,14 @@ async function sendMessage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           contents,
-          tools: [{ googleSearchRetrieval: {} }],
+          tools: [{
+            googleSearchRetrieval: {
+              dynamicRetrievalConfig: {
+                mode: "MODE_DYNAMIC",
+                dynamicThreshold: 0.7
+              }
+            }
+          }],
           safetySettings: [{ category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" }]
         })
       });
@@ -102,11 +114,14 @@ async function sendMessage() {
         saveChat();
         replied = true;
       } else if (res.status === 429) {
+        addMessage('bot', `Key ${tries} busy — next...`);
         await new Promise(r => setTimeout(r, 2500));
       } else {
+        addMessage('bot', "Retrying...");
         await new Promise(r => setTimeout(r, 1500));
       }
     } catch (e) {
+      addMessage('bot', "Network — retrying...");
       await new Promise(r => setTimeout(r, 1500));
     }
   }
@@ -125,7 +140,3 @@ function loadChat() {
     chatHistory.forEach(m => addMessage(m.role === 'model' ? 'bot' : 'user', m.text));
   }
 }
-
-document.getElementById('messageInput').addEventListener('keypress', e => {
-  if (e.key === 'Enter') sendMessage();
-});
