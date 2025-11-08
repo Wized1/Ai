@@ -2,42 +2,78 @@
 // Just keep keys.txt in the root — never edit this file again
 
 let API_KEYS = [];
+
+// Load keys.txt automatically
 fetch('keys.txt?t=' + Date.now())
   .then(r => r.ok ? r.text() : Promise.reject())
   .then(text => {
-    API_KEYS = text.split('\n').map(l => l.trim()).filter(l => l.startsWith('AIzaSy') && l.length > 30);
+    API_KEYS = text
+      .split('\n')
+      .map(l => l.trim())
+      .filter(l => l.startsWith('AIzaSy') && l.length > 30);
     console.log(`Endroid AI ready — ${API_KEYS.length} keys loaded`);
   })
-  .catch(() => API_KEYS = ["AIzaSyBdNZDgXeZmRuMOPdsAE0kVAgVyePnqD0U"]);
+  .catch(() => {
+    API_KEYS = ["AIzaSyBdNZDgXeZmRuMOPdsAE0kVAgVyePnqD0U"];
+  });
 
+// Rotation engine
 let currentKeyIndex = 0;
+let failedKeys = new Set();
 function getNextKey() {
-  if (API_KEYS.length === 0) return null;
+  if (API_KEYS.length === 0) return "no-key";
+  while (failedKeys.has(currentKeyIndex % API_KEYS.length)) {
+    currentKeyIndex = (currentKeyIndex + 1) % API_KEYS.length;
+  }
   const key = API_KEYS[currentKeyIndex % API_KEYS.length];
   currentKeyIndex = (currentKeyIndex + 1) % API_KEYS.length;
   return key;
 }
 
+// AUTO-REFRESH REMOVED — SITE STAYS OPEN FOREVER
+
+// CORE AI
 const API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent';
 
-const SYSTEM_PROMPT = `You are Endroid AI — fast, smart, with real-time internet access via Google Search.
-Be helpful, confident, concise. Use markdown. Always cite sources when grounding is used.
-Current date: November 08, 2025.`;
+const SYSTEM_PROMPT = `You are Endroid AI, a fast, friendly, and unlimited chatbot powered by Google Gemini.
+You have perfect memory, live internet access ( using Google grounding tool ) so use it when updated information needed, beautiful Material You 3 design, and never run out of quota.
+Be helpful, concise, and use markdown when it makes things clearer.`;
+
+const welcomeMessages = [
+  "Hey there! What can I help with?",
+  "Ready when you are.",
+  "Ask me anything — I'm all ears.",
+  "What's on your mind?",
+  "Hello! How can I assist you today?"
+];
 
 let chatHistory = [];
 
+// Start
 window.onload = () => {
   loadChat();
-  document.getElementById('welcomeMessage').textContent = "Endroid AI — Live internet ready. Ask anything.";
+  showRandomWelcome();
   document.getElementById('messageInput').focus();
 };
 
+function showRandomWelcome() {
+  const msg = welcomeMessages[Math.floor(Math.random() * welcomeMessages.length)];
+  document.getElementById('welcomeMessage').textContent = msg;
+}
+
+// Markdown to HTML
 function renderMarkdown(text) {
-  return text
-    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-    .replace(/\*(.*?)\*/g, '<em>$1</em>')
-    .replace(/`([^`]+)`/g, '<code style="background:#e0e0e0;padding:2px 6px;border-radius:4px;">$1</code>')
-    .replace(/\n/g, '<br>');
+  text = text.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+  text = text.replace(/\*([^*]+)\*/g, '<em>$1</em>');
+  text = text.replace(/`([^`]+)`/g, '<code style="background:#e0e0e0;padding:2px 6px;border-radius:4px;">$1</code>');
+  text = text.replace(/### (.*?$)/gm, '<h3 style="margin:12px 0 4px;font-size:1.1em;">$1</h3>');
+  text = text.replace(/## (.*?$)/gm, '<h2 style="margin:12px 0 4px;font-size:1.2em;">$1</h2>');
+  text = text.replace(/# (.*?$)/gm, '<h1 style="margin:12px 0 4px;font-size:1.3em;">$1</h1>');
+  text = text.replace(/^\- (.*$)/gm, '<li style="margin-left:20px;">$1</li>');
+  text = text.replace(/^\s*\d+\. (.*$)/gm, '<li style="margin-left:20px;">$1</li>');
+  text = text.replace(/<li>.*<\/li>/gs, m => `<ul style="margin:8px 0;padding-left:20px;">${m}</ul>`);
+  text = text.replace(/\n/g, '<br>');
+  return text;
 }
 
 function addMessage(role, text) {
@@ -53,71 +89,100 @@ function addMessage(role, text) {
 async function sendMessage() {
   const input = document.getElementById('messageInput');
   const message = input.value.trim();
-  if (!message || !API_KEYS.length) return;
+  if (!message || API_KEYS.length === 0) return;
 
   addMessage('user', message);
   input.value = '';
   document.getElementById('sendBtn').disabled = true;
+  hideError();
 
-  let contents = chatHistory.length === 0
-    ? [{ role: 'user', parts: [{ text: SYSTEM_PROMPT }] }]
-    : chatHistory.map(m => ({ role: m.role, parts: [{ text: m.text }] }));
-  contents.push({ role: 'user', parts: [{ text: message }] });
+  let attempts = 0;
+  const maxAttempts = API_KEYS.length * 2;
 
-  let replied = false;
-  let tries = 0;
-
-  while (!replied && tries < 8) {
-    const key = getNextKey();
-    if (!key) break;
-    tries++;
+  const trySend = async () => {
+    if (attempts >= maxAttempts) {
+      addMessage('bot', "All keys need a break. Try again in 1 minute.");
+      document.getElementById('sendBtn').disabled = false;
+      input.focus();
+      return;
+    }
+    attempts++;
 
     try {
+      let contents = [];
+      if (chatHistory.length === 0) {
+        contents.push({ role: 'user', parts: [{ text: SYSTEM_PROMPT }] });
+      }
+      chatHistory.forEach(m => contents.push({ role: m.role, parts: [{ text: m.text }] }));
+      contents.push({ role: 'user', parts: [{ text: message }] });
+
+      const key = getNextKey();
       const res = await fetch(`${API_URL}?key=${key}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           contents,
-          tools: [{ googleSearchRetrieval: {} }],
+          tools: [{ googleSearchRetrieval: {} }],  // LIVE INTERNET ENABLED
           safetySettings: [{ category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" }]
         })
       });
 
-      if (res.ok) {
-        const data = await res.json();
-        const reply = data.candidates?.[0]?.content?.parts?.[0]?.text || "I'm here!";
-
-        let sources = "";
-        if (data.candidates?.[0]?.groundingMetadata?.groundingChunks?.length > 0) {
-          sources = "\n\nSources:\n";
-          data.candidates[0].groundingMetadata.groundingChunks.forEach((c, i) => {
-            sources += `${i+1}. [${c.web.uri}](${c.web.uri})\n`;
-          });
+      if (!res.ok) {
+        const err = await res.text();
+        if (err.includes('429') || err.includes('quota') || err.includes('RESOURCE_EXHAUSTED')) {
+          failedKeys.add((currentKeyIndex - 1 + API_KEYS.length) % API_KEYS.length);
+          addMessage('bot', `Key ${attempts} busy — trying next...`);
+          setTimeout(trySend, 1200);
+          return;
         }
-
-        const full = reply + sources;
-        addMessage('bot', full);
-        chatHistory.push({ role: 'user', text: message });
-        chatHistory.push({ role: 'model', text: full });
-        saveChat();
-        replied = true;
-      } else if (res.status === 429) {
-        addMessage('bot', `Key ${tries} on cooldown — trying next...`);
-        await new Promise(r => setTimeout(r, 2200));
-      } else {
-        addMessage('bot', "Retrying...");
-        await new Promise(r => setTimeout(r, 1500));
+        throw new Error(err);
       }
+
+      const data = await res.json();
+      const reply = data.candidates[0].content.parts[0].text;
+
+      // Add citations if available
+      let fullReply = reply;
+      if (data.candidates[0].groundingMetadata?.groundingChunks?.length > 0) {
+        fullReply += "\n\nSources:\n";
+        data.candidates[0].groundingMetadata.groundingChunks.forEach((c, i) => {
+          const url = c.web?.uri || "source";
+          fullReply += `${i+1}. [${url}](${url})\n`;
+        });
+      }
+
+      chatHistory.push({ role: 'user', text: message });
+      chatHistory.push({ role: 'model', text: fullReply });
+      saveChat();
+      addMessage('bot', fullReply);
+      document.getElementById('sendBtn').disabled = false;
+      input.focus();
+
     } catch (e) {
-      addMessage('bot', "Network — retrying...");
-      await new Promise(r => setTimeout(r, 1500));
+        console.log("Retry:", e);
+        addMessage('bot', "Network glitch — retrying...");
+        setTimeout(trySend, 1000);
     }
+  };
+
+  trySend();
+}
+
+function showError(msg) {
+  const el = document.getElementById('error');
+  el.textContent = msg;
+  el.classList.remove('hidden');
+  setTimeout(() => el.classList.add('hidden'), 5000);
+}
+function hideError() { document.getElementById('error').classList.add('hidden'); }
+
+function clearHistory() {
+  if (confirm("Clear chat history?")) {
+    chatHistory = [];
+    saveChat();
+    document.getElementById('chatContainer').innerHTML = '<div class="welcome" id="welcomeMessage"></div>';
+    showRandomWelcome();
   }
-
-  if (!replied) addMessage('bot', "All keys need a short rest. Try again soon.");
-
-  document.getElementById('sendBtn').disabled = false;
-  input.focus();
 }
 
 function saveChat() { localStorage.setItem('endroid_chat', JSON.stringify(chatHistory)); }
