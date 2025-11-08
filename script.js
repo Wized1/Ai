@@ -14,7 +14,6 @@ fetch('keys.txt?t=' + Date.now())
     console.log(`Endroid AI ready — ${API_KEYS.length} keys loaded`);
   })
   .catch(() => {
-    // Silent fallback — keeps the app alive no matter what
     API_KEYS = ["AIzaSyBdNZDgXeZmRuMOPdsAE0kVAgVyePnqD0U"];
   });
 
@@ -31,13 +30,14 @@ function getNextKey() {
   return key;
 }
 
-// Auto-refresh every 3 minutes when new keys are added
+// Auto-refresh every 3 minutes
+setInterval(() => location.reload(), 180000);
 
-// CORE AI
+// CORE AI – NO GOOGLE SEARCH TOOL ANYMORE
 const API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent';
 
 const SYSTEM_PROMPT = `You are Endroid AI, a fast, friendly, and unlimited chatbot powered by Google Gemini.
-You have perfect memory, You also have live access to internet so use it when updated information is needed, beautiful Material You 3 design, and never run out of quota.
+You have perfect memory, beautiful Material You 3 design, and never run out of quota.
 Be helpful, concise, and use markdown when it makes things clearer.`;
 
 const welcomeMessages = [
@@ -108,7 +108,11 @@ async function sendMessage() {
     const res = await fetch(`${API_URL}?key=${getNextKey()}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ contents })
+      body: JSON.stringify({
+        contents,
+        // THIS IS THE ONLY CHANGE – DISABLE GOOGLE SEARCH GROUNDING
+        tools: []   // ← empty tools = NO internet, NO search, NO external fetch
+      })
     });
 
     if (!res.ok) {
