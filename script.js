@@ -7,7 +7,7 @@ let failedKeys = new Set();
 const MODEL_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent";
 const SYSTEM_PROMPT = `You are Endroid AI — an intelligent, friendly assistant powered by Gemini.
 Use the given Wikipedia context as the main truth source.
-If context is empty, respond from your own knowledge., but ignore Wikipedia when no data needed like in simple conversations ( eg. hello, hi , good morning erc.`;
+If context is empty, respond from your own knowledge., but ignore Wikipedia when no data needed like in simple conversations ( eg. hello, hi , good morning etc  ( mean don't use Wikipedia source when not needed ).`;
 
 // Load API keys
 fetch("keys.txt?t=" + Date.now())
@@ -126,6 +126,16 @@ async function sendMessage() {
     document.getElementById("sendBtn").disabled = false;
   }
 }
+
+function clearHistory() {
+  if (confirm("Clear chat history?")) {
+    chatHistory = [];
+    saveChat();
+    document.getElementById('chatContainer').innerHTML = '<div class="welcome" id="welcomeMessage"></div>';
+    showRandomWelcome();
+  }
+  }
+
 
 // ---------- EVENT ----------
 document.getElementById("messageInput").addEventListener("keypress", e => {
