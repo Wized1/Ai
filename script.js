@@ -1,6 +1,5 @@
-// ================= ENDROID AI — GEMINI + WIKIPEDIA (FINAL BUILD) =================
+// ENDROID AI — GEMINI + WIKIPEDIA + TYPING ANIMATION (FINAL)
 
-// ---------------- KEYS ----------------
 let API_KEYS = [];
 let currentKey = 0;
 let failedKeys = new Set();
@@ -8,7 +7,8 @@ let failedKeys = new Set();
 const MODEL_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent";
 const SYSTEM_PROMPT = `You are Endroid AI — an intelligent, friendly assistant powered by Gemini.
 Use the given Wikipedia context as the main truth source.
-If context is empty, respond from your own knowledge.`;
+If context is empty, respond from your own knowledge.
+Do NOT use Wikipedia for simple greetings like "hi" or "hello".`;
 
 // Load API keys
 fetch("keys.txt?t=" + Date.now())
@@ -22,13 +22,13 @@ fetch("keys.txt?t=" + Date.now())
     console.error("⚠️ Failed to load keys.txt");
   });
 
-// ---------------- WIKIPEDIA SEARCH ----------------
+// ---------- WIKIPEDIA ----------
 async function wikipediaSearch(query) {
   try {
     const url = `https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(query)}&utf8=&format=json&origin=*`;
     const res = await fetch(url);
     const data = await res.json();
-    const results = data.query.search.slice(0, 5); // top 5 results
+    const results = data.query.search.slice(0, 3);
     let out = [];
 
     for (let r of results) {
@@ -44,7 +44,7 @@ async function wikipediaSearch(query) {
   }
 }
 
-// ---------------- GEMINI REPLY ----------------
+// ---------- GEMINI ----------
 async function geminiReply(prompt, wikiContext) {
   const context = `Wikipedia context:\n${wikiContext}`;
   const body = {
@@ -84,66 +84,40 @@ async function geminiReply(prompt, wikiContext) {
   throw new Error("All keys failed or returned empty.");
 }
 
-// ---------------- UI / MARKDOWN ----------------
+// ---------- UI ----------
 function renderMarkdown(t) {
   return t
     .replace(/\*\*(.*?)\*\*/g, "<b>$1</b>")
     .replace(/\*(.*?)\*/g, "<i>$1</i>")
-    .replace(/`([^`]+)`/g, '<code style="background:#e0e0e0;padding:2px 6px;border-radius:4px;">$1</code>')
     .replace(/\n/g, "<br>");
 }
 
 function addMessage(role, text, typing = false) {
   const chat = document.getElementById("chatContainer");
+
+  // Remove welcome message if chat is not empty
+  const welcomeEl = document.getElementById("welcomeMessage");
+  if (welcomeEl) welcomeEl.remove();
+
   const msg = document.createElement("div");
   msg.className = `message ${role}`;
-  msg.innerHTML = renderMarkdown(text);
   chat.appendChild(msg);
   chat.scrollTop = chat.scrollHeight;
 
-  if (typing) {
-    msg.classList.add("typing");
-    setTimeout(() => msg.classList.remove("typing"), 1000 + text.length * 10);
+  if (typing && role === "bot") {
+    let i = 0;
+    const interval = setInterval(() => {
+      msg.innerHTML = renderMarkdown(text.slice(0, i + 1));
+      i++;
+      chat.scrollTop = chat.scrollHeight;
+      if (i >= text.length) clearInterval(interval);
+    }, 20); // typing speed: 20ms per character
+  } else {
+    msg.innerHTML = renderMarkdown(text);
   }
 }
 
-// ---------------- WELCOME ----------------
-const welcomeMessages = [
-  "Hey there! What can I help with?",
-  "Ready when you are.",
-  "Ask me anything — I'm all ears.",
-  "What's on your mind?",
-  "Hello! How can I assist you today?"
-];
-
-let chatHistory = [];
-
-function showRandomWelcome() {
-  const msg = welcomeMessages[Math.floor(Math.random() * welcomeMessages.length)];
-  document.getElementById('welcomeMessage').textContent = msg;
-}
-
-// ---------------- LOCAL STORAGE ----------------
-function saveChat() { localStorage.setItem('endroid_chat', JSON.stringify(chatHistory)); }
-function loadChat() {
-  const saved = localStorage.getItem('endroid_chat');
-  if (saved) {
-    chatHistory = JSON.parse(saved);
-    chatHistory.forEach(m => addMessage(m.role === 'model' ? 'bot' : 'user', m.text));
-  }
-}
-
-// ---------------- CLEAR HISTORY ----------------
-function clearHistory() {
-  if (confirm("Clear chat history?")) {
-    chatHistory = [];
-    saveChat();
-    document.getElementById('chatContainer').innerHTML = '<div class="welcome" id="welcomeMessage"></div>';
-    showRandomWelcome();
-  }
-}
-
-// ---------------- SEND MESSAGE ----------------
+// ---------- MAIN ----------
 async function sendMessage() {
   const input = document.getElementById("messageInput");
   const message = input.value.trim();
@@ -154,35 +128,64 @@ async function sendMessage() {
   document.getElementById("sendBtn").disabled = true;
 
   try {
-    addMessage("system", "_🔎 Fetching Wikipedia data..._", true);
+    addMessage("system", "Fetching Wikipedia data...");
     const wiki = await wikipediaSearch(message);
 
-    addMessage("system", "_🤖 Querying Gemini..._", true);
+    addMessage("system", "_🤖 Querying Gemini..._");
     const reply = await geminiReply(message, wiki);
 
-    chatHistory.push({ role: "user", text: message });
-    chatHistory.push({ role: "model", text: reply });
-    saveChat();
-
-    addMessage("bot", reply, true);
-    addMessage("system", "_📚 Source: Wikipedia + Gemini._");
-
+    addMessage("bot", reply, true); // typing animation
+    addMessage("system", "📚 Source: Wikipedia + Gemini.");
   } catch (e) {
     console.error(e);
-    addMessage("bot", "⚠️ Failed to get a response. Try again later.");
+    addMessage("bot", "⚠️ Failed to get a response. Try again later.", true);
   } finally {
     document.getElementById("sendBtn").disabled = false;
-    input.focus();
   }
 }
 
-// ---------------- EVENTS ----------------
-window.onload = () => {
-  loadChat();
-  showRandomWelcome();
-  document.getElementById('messageInput').focus();
-};
+// ---------- CLEAR HISTORY ----------
+function clearHistory() {
+  if (confirm("Clear chat history?")) {
+    chatHistory = [];
+    saveChat();
+    document.getElementById("chatContainer").innerHTML = '<div class="welcome" id="welcomeMessage"></div>';
+    showRandomWelcome();
+  }
+}
 
+// ---------- EVENTS ----------
 document.getElementById("messageInput").addEventListener("keypress", e => {
   if (e.key === "Enter") sendMessage();
 });
+
+// ---------- LOCAL STORAGE ----------
+function saveChat() { localStorage.setItem('endroid_chat', JSON.stringify(chatHistory)); }
+function loadChat() {
+  const saved = localStorage.getItem('endroid_chat');
+  if (saved) {
+    chatHistory = JSON.parse(saved);
+    chatHistory.forEach(m => addMessage(m.role === 'model' ? 'bot' : 'user', m.text));
+  }
+}
+
+// ---------- WELCOME ----------
+const welcomeMessages = [
+  "Hey there! What can I help with?",
+  "Ready when you are.",
+  "Ask me anything — I'm all ears.",
+  "What's on your mind?",
+  "Hello! How can I assist you today?"
+];
+
+function showRandomWelcome() {
+  const msg = welcomeMessages[Math.floor(Math.random() * welcomeMessages.length)];
+  const el = document.getElementById('welcomeMessage');
+  if (el) el.textContent = msg;
+}
+
+window.onload = () => {
+  loadChat();
+  showRandomWelcome();
+  document.getElementById("messageInput").focus();
+};
