@@ -1,133 +1,169 @@
-// ENDROID AI — GEMINI + WIKIPEDIA (v2.1 FINAL BUILD)
+// =============================
+// Endroid AI — Final Script.js
+// =============================
 
+// CONFIG
+const API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent";
 let API_KEYS = [];
-let currentKey = 0;
+let keyIndex = 0;
 let failedKeys = new Set();
+let chatHistory = [];
+let typingTimeout;
 
-const MODEL_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent";
-const SYSTEM_PROMPT = `You are Endroid AI — an intelligent, friendly assistant powered by Gemini.
-Use the given Wikipedia context as the main truth source.
-If context is empty, respond from your own knowledge.`;
+// --------------- Load Keys ----------------
+async function loadKeys() {
+  try {
+    const res = await fetch('keys.txt?t=' + Date.now());
+    if (!res.ok) throw new Error("Cannot read keys.txt");
+    API_KEYS = res.text().then(text => text.split('\n').map(k => k.trim()).filter(k => k.length > 0));
+  } catch (err) {
+    console.error(err);
+    addMessage("bot", "⚠️ Error: Couldn't load API keys.");
+  }
+}
 
-// Load API keys
-fetch("keys.txt?t=" + Date.now())
-  .then(r => r.text())
-  .then(text => {
-    API_KEYS = text.split("\n").map(k => k.trim()).filter(k => k.startsWith("AIzaSy"));
-    console.log(`✅ Loaded ${API_KEYS.length} Gemini keys`);
-  })
-  .catch(() => {
-    API_KEYS = [];
-    console.error("⚠️ Failed to load keys.txt");
-  });
+// --------------- Chat UI ------------------
+function addMessage(role, text, raw = false) {
+  const chatBox = document.getElementById("chatBox");
+  const msg = document.createElement("div");
+  msg.className = "msg " + role;
+  msg.innerHTML = raw ? text : text.replace(/\n/g, "<br>");
+  chatBox.appendChild(msg);
+  chatBox.scrollTop = chatBox.scrollHeight;
+}
 
-// ---------- WIKIPEDIA ----------
+function showTyping() {
+  const chatBox = document.getElementById("chatBox");
+  let typing = document.getElementById("typing");
+  if (!typing) {
+    typing = document.createElement("div");
+    typing.id = "typing";
+    typing.className = "msg bot typing";
+    typing.innerHTML = "<span>.</span><span>.</span><span>.</span>";
+    chatBox.appendChild(typing);
+  }
+  chatBox.scrollTop = chatBox.scrollHeight;
+}
+
+function hideTyping() {
+  const t = document.getElementById("typing");
+  if (t) t.remove();
+}
+
+// --------------- Wikipedia Fetch ---------------
 async function wikipediaSearch(query) {
   try {
-    const url = `https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(query)}&utf8=&format=json&origin=*`;
-    const res = await fetch(url);
+    const res = await fetch(`https://en.wikipedia.org/w/api.php?action=query&list=search&format=json&origin=*&srsearch=${encodeURIComponent(query)}`);
     const data = await res.json();
-    const results = data.query.search.slice(0, 3);
-    let out = [];
+    const pages = data?.query?.search?.slice(0, 3) || [];
+    const results = [];
 
-    for (let r of results) {
-      const page = await fetch(`https://en.wikipedia.org/w/api.php?action=query&prop=extracts&exintro&explaintext&format=json&pageids=${r.pageid}&origin=*`);
-      const pdata = await page.json();
-      const txt = pdata.query.pages[r.pageid].extract;
-      out.push(`📘 ${r.title}\n${txt}`);
+    for (const p of pages) {
+      const title = p.title;
+      const extractRes = await fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(title)}`);
+      const extractData = await extractRes.json();
+      results.push(`📘 ${title}: ${extractData.extract || "No summary available."}`);
     }
 
-    return out.length ? out.join("\n\n") : "No Wikipedia data found.";
-  } catch {
-    return "No Wikipedia data available (fetch failed).";
+    return results.length ? results : ["No relevant Wikipedia data found."];
+  } catch (e) {
+    console.error("Wiki error:", e);
+    return ["Wikipedia fetch failed."];
   }
 }
 
-// ---------- GEMINI ----------
-async function geminiReply(prompt, wikiContext) {
-  const context = `Wikipedia context:\n${wikiContext}`;
-  const body = {
-    contents: [
-      { role: "user", parts: [{ text: SYSTEM_PROMPT + "\n\n" + context + "\n\nUser: " + prompt }] }
-    ]
-  };
-
-  for (let i = 0; i < API_KEYS.length; i++) {
-    const key = API_KEYS[currentKey];
-    currentKey = (currentKey + 1) % API_KEYS.length;
-
-    try {
-      const res = await fetch(`${MODEL_URL}?key=${key}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body)
-      });
-
-      if (!res.ok) {
-        const err = await res.text();
-        console.warn(`❌ Key ${i + 1} failed: ${err}`);
-        failedKeys.add(key);
-        continue;
-      }
-
-      const data = await res.json();
-      const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
-      if (text) return text;
-
-    } catch (err) {
-      console.warn(`⚠️ Key ${i + 1} error:`, err.message);
-      failedKeys.add(key);
-    }
-  }
-
-  throw new Error("All keys failed or returned empty.");
+// --------------- Get Next Key ---------------
+function getNextKey() {
+  keyIndex = (keyIndex + 1) % API_KEYS.length;
+  return API_KEYS[keyIndex];
 }
 
-// ---------- UI ----------
-function renderMarkdown(t) {
-  return t
-    .replace(/\*\*(.*?)\*\*/g, "<b>$1</b>")
-    .replace(/\*(.*?)\*/g, "<i>$1</i>")
-    .replace(/\n/g, "<br>");
-}
-
-function addMessage(role, text) {
-  const chat = document.getElementById("chatContainer");
-  const msg = document.createElement("div");
-  msg.className = `message ${role}`;
-  msg.innerHTML = renderMarkdown(text);
-  chat.appendChild(msg);
-  chat.scrollTop = chat.scrollHeight;
-}
-
-// ---------- MAIN ----------
+// --------------- Main Function ---------------
 async function sendMessage() {
   const input = document.getElementById("messageInput");
   const message = input.value.trim();
   if (!message) return;
 
   addMessage("user", message);
-  input.value = "";
+  input.value = '';
   document.getElementById("sendBtn").disabled = true;
 
+  showTyping();
+
   try {
-    addMessage("system", "_🔎 Fetching Wikipedia data..._");
-    const wiki = await wikipediaSearch(message);
+    const wikiData = await wikipediaSearch(message);
+    const context = wikiData.join("\n\n");
 
-    addMessage("system", "_🤖 Querying Gemini..._");
-    const reply = await geminiReply(message, wiki);
+    const contents = [
+      {
+        role: "system",
+        parts: [{
+          text: `You are Endroid AI — a helpful, confident and factual assistant.
+Always trust the Wikipedia context as valid and summarize clearly.`
+        }]
+      },
+      { role: "system", parts: [{ text: "Wikipedia Context:\n" + context }] },
+      { role: "user", parts: [{ text: message }] }
+    ];
 
-    addMessage("bot", reply);
-    addMessage("system", "_📚 Source: Wikipedia + Gemini._");
-  } catch (e) {
-    console.error(e);
-    addMessage("bot", "⚠️ Failed to get a response. Try again later.");
+    let success = false;
+    let reply = "";
+
+    for (let i = 0; i < API_KEYS.length; i++) {
+      const key = getNextKey();
+
+      try {
+        const res = await fetch(`${API_URL}?key=${key}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ contents })
+        });
+
+        if (!res.ok) throw new Error(`Response: ${res.status}`);
+        const data = await res.json();
+        reply = data?.candidates?.[0]?.content?.parts?.[0]?.text || "(No response)";
+        success = true;
+        break;
+
+      } catch (err) {
+        console.warn(`Key ${i + 1} failed.`, err.message);
+        failedKeys.add(i);
+      }
+    }
+
+    hideTyping();
+
+    if (!success) {
+      addMessage("bot", "⚠️ All API keys failed or quota exceeded.");
+    } else {
+      addMessage("bot", reply);
+      chatHistory.push({ user: message, bot: reply });
+    }
+
+  } catch (err) {
+    console.error(err);
+    hideTyping();
+    addMessage("bot", "⚠️ Error while processing your message.");
   } finally {
+    hideTyping();
     document.getElementById("sendBtn").disabled = false;
   }
 }
 
-// ---------- EVENT ----------
-document.getElementById("messageInput").addEventListener("keypress", e => {
-  if (e.key === "Enter") sendMessage();
-});
+// --------------- Typing Animation CSS ---------------
+document.head.insertAdjacentHTML("beforeend", `
+<style>
+.msg.bot.typing span {
+  display: inline-block;
+  animation: blink 1.2s infinite;
+  font-size: 20px;
+  color: #999;
+}
+.msg.bot.typing span:nth-child(2) { animation-delay: 0.2s; }
+.msg.bot.typing span:nth-child(3) { animation-delay: 0.4s; }
+@keyframes blink { 0%, 80%, 100% { opacity: 0; } 40% { opacity: 1; } }
+</style>
+`);
+
+// --------------- Init ---------------
+window.addEventListener("load", loadKeys);
