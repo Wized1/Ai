@@ -288,16 +288,16 @@ async function sendMessage() {
     const useWiki = shouldUseWikipedia(message);
     let wiki = "";
     if (useWiki) {
-      addMessage("system", "_🔎 Fetching Wikipedia data..._");
+      addMessage("system", "Getting latest data....");
       wiki = await wikipediaSearch(message);
     }
 
-    addMessage("system", "_🤖 Querying Gemini..._");
+    addMessage("system", "");
     const reply = await geminiReply(message, wiki);
 
     // replace system typing line? we just append bot reply
     addMessage("bot", reply, true);
-    addMessage("system", "_📚 Source: Wikipedia + Gemini._");
+    addMessage("system", "");
   } catch (e) {
     console.error("sendMessage error:", e);
     addMessage("bot", "⚠️ Failed to get a response. Try again later.", true);
