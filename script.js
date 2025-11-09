@@ -7,7 +7,7 @@ let failedKeys = new Set();
 const MODEL_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent";
 const SYSTEM_PROMPT = `You are Endroid AI — an intelligent, friendly assistant powered by Gemini.
 Use the given Wikipedia context as the main truth source.
-If context is empty, respond from your own knowledge.`;
+If context is empty, respond from your own knowledge., but ignore Wikipedia when no data needed like in simple conversations ( eg. hello, hi , good morning erc.`;
 
 // Load API keys
 fetch("keys.txt?t=" + Date.now())
@@ -111,14 +111,14 @@ async function sendMessage() {
   document.getElementById("sendBtn").disabled = true;
 
   try {
-    addMessage("system", "Thinking.....");
+    addMessage("system", "");
     const wiki = await wikipediaSearch(message);
 
-    addMessage("system", "Replying....");
+    addMessage("system", "");
     const reply = await geminiReply(message, wiki);
 
     addMessage("bot", reply);
-    addMessage("system", "Answer !");
+    addMessage("system", "");
   } catch (e) {
     console.error(e);
     addMessage("bot", "⚠️ Failed to get a response. Try again later.");
