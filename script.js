@@ -19,7 +19,7 @@ Do NOT invent or hallucinate locations — if you need a location and the user d
 Do NOT use Wikipedia for simple greetings like "hi" or "hello".`;
 
 // ---------------- LOAD KEYS ----------------
-fetch(".env?t=" + Date.now())
+fetch("keys.txt?t=" + Date.now())
   .then(r => r.text())
   .then(text => {
     API_KEYS = text.split(/\r?\n/).map(k => k.trim()).filter(k => k.startsWith("AIzaSy"));
