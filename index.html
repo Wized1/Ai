@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Endroid AI</title>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;600&display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" />
+  <link rel="stylesheet" href="style.css">
+  <link rel="manifest" href="manifest.json">
+</head>
+<body>
+  <div class="header">
+    <span class="material-symbols-outlined">smart_toy</span>
+    Endroid AI
+  </div>
+
+  <div class="chat-container" id="chatContainer">
+    <div class="welcome" id="welcomeMessage">What can I help with?</div>
+  </div>
+
+  <div class="input-area">
+    <button class="icon-btn" id="clearBtn" onclick="clearHistory()" title="Clear History">
+      <span class="material-symbols-outlined">delete</span>
+    </button>
+    <input type="text" id="messageInput" placeholder="Ask Endroid AI" autocomplete="off">
+    <button class="icon-btn" id="sendBtn" onclick="sendMessage()" title="Send">
+      <span class="material-symbols-outlined">send</span>
+    </button>
+  </div>
+
+  <div id="error" class="error hidden"></div>
+
+  <script src="script.js"></script>
+</body>
+</html>
